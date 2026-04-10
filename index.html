@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OWASP BLT — Bug Logging Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red: #ff2d2d;
+  --red-dim: #c01e1e;
+  --red-glow: rgba(255,45,45,0.18);
+  --red-bright: #ff5f5f;
+  --bg: #08090b;
+  --bg2: #0e1014;
+  --bg3: #13161c;
+  --bg4: #1a1e26;
+  --border: rgba(255,255,255,0.06);
+  --border-red: rgba(255,45,45,0.25);
+  --text: #f0f0f0;
+  --text-dim: #d0d0d0;
+  --muted: #7a7f8a;
+  --mono: 'Space Mono', monospace;
+  --sans: 'Syne', sans-serif;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+/* ── NOISE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* ── NAVBAR ── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 60px;
+  height: 64px;
+  background: rgba(8,9,11,0.7);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+  transition: all .3s ease;
+}
+
+nav:hover {
+  background: rgba(8,9,11,0.85);
+  border-bottom-color: rgba(255,45,45,0.15);
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: transform .3s ease;
+}
+
+.nav-logo:hover {
+  transform: translateY(-2px);
+}
+
+.nav-logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--red), var(--red-bright));
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 0 20px rgba(255,45,45,0.3);
+  transition: all .3s ease;
+}
+
+.nav-logo-icon:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 30px rgba(255,45,45,0.5);
+}
+
+.nav-logo-text {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.nav-logo-text span {
+  color: var(--red);
+}
+
+.nav-links {
+  display: flex;
+  list-style: none;
+  gap: 4px;
+}
+
+.nav-links li a {
+  display: block;
+  padding: 6px 14px;
+  border-radius: 6px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all .3s ease;
+  position: relative;
+}
+
+.nav-links li a::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--red), transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .3s ease;
+}
+
+.nav-links li a:hover {
+  color: var(--text);
+  background: rgba(255,45,45,0.08);
+}
+
+.nav-links li a:hover::after {
+  transform: scaleX(1);
+}
+
+.nav-cta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn {
+  padding: 8px 20px;
+  border-radius: 7px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent, rgba(255,255,255,0.2), transparent);
+  transform: translateX(-100%);
+  transition: transform .6s;
+}
+
+.btn:hover::before {
+  transform: translateX(100%);
+}
+
+.btn-ghost {
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: rgba(255,45,45,0.3);
+  background: rgba(255,45,45,0.05);
+  transform: translateY(-2px);
+}
+
+.btn-red {
+  background: linear-gradient(135deg, var(--red), var(--red-bright));
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255,45,45,0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+.btn-red:hover {
+  background: linear-gradient(135deg, var(--red-bright), var(--red));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255,45,45,0.4), inset 0 1px 0 rgba(255,255,255,0.5);
+}
+
+.btn-red:active {
+  transform: translateY(0);
+}
+
+/* ── HERO ── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 120px 40px;
+  overflow: hidden;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,45,45,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,45,45,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 30%, transparent 100%);
+  animation: gridShift 20s linear infinite;
+}
+
+@keyframes gridShift {
+  0% { background-position: 0 0; }
+  100% { background-position: 60px 60px; }
+}
+
+.hero-glow {
+  position: absolute;
+  width: 700px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255,45,45,0.12) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: glowPulse 4s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.1); }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 820px;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,45,45,0.1);
+  border: 1px solid var(--border-red);
+  border-radius: 100px;
+  padding: 5px 14px 5px 8px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: #ff7070;
+  margin-bottom: 28px;
+  animation: fadeUp .6s ease both;
+  backdrop-filter: blur(10px);
+  transition: all .3s ease;
+}
+
+.hero-badge:hover {
+  border-color: rgba(255,45,45,0.5);
+  background: rgba(255,45,45,0.15);
+  transform: translateY(-2px);
+}
+
+.hero-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,100% { opacity: 1; box-shadow: 0 0 8px var(--red); }
+  50% { opacity: 0.4; box-shadow: 0 0 4px var(--red); }
+}
+
+.hero h1 {
+  font-size: clamp(42px, 6vw, 78px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -2px;
+  animation: fadeUp .6s .1s ease both;
+  background: linear-gradient(135deg, var(--text), var(--text-dim));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero h1 .accent {
+  color: var(--red);
+  display: block;
+  background: linear-gradient(135deg, var(--red), var(--red-bright));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 30px rgba(255,45,45,0.2);
+}
+
+.hero-sub {
+  margin-top: 20px;
+  font-size: 17px;
+  color: var(--muted);
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.65;
+  animation: fadeUp .6s .2s ease both;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 36px;
+  flex-wrap: wrap;
+  animation: fadeUp .6s .3s ease both;
+}
+
+.btn-lg {
+  padding: 13px 28px;
+  font-size: 15px;
+}
+
+.hero-scroll {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--mono);
+  letter-spacing: 1px;
+  animation: fadeIn 1s .8s ease both;
+}
+
+.scroll-line {
+  width: 1px;
+  height: 40px;
+  background: linear-gradient(to bottom, var(--red), transparent);
+  animation: scrollPulse 2s infinite;
+}
+
+@keyframes scrollPulse {
+  0%,100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── STATS BAR ── */
+.stats-bar {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(8,9,11,0.5), rgba(14,16,20,0.5));
+  backdrop-filter: blur(10px);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.stat-item {
+  padding: 36px 20px;
+  text-align: center;
+  border-right: 1px solid var(--border);
+  transition: all .3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--red), transparent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform .3s ease;
+}
+
+.stat-item:last-child { border-right: none; }
+
+.stat-item:hover {
+  background: rgba(255,45,45,0.05);
+  transform: translateY(-2px);
+}
+
+.stat-item:hover::before {
+  transform: scaleX(1);
+}
+
+.stat-num {
+  font-size: 38px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--red), var(--red-bright));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-family: var(--mono);
+  line-height: 1;
+  display: block;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 500;
+}
+
+/* ── SECTION ── */
+.section {
+  padding: 100px 60px;
+}
+
+.section-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--red);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  animation: slideIn .5s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.section h2 {
+  font-size: clamp(28px, 3.5vw, 44px);
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.1;
+  background: linear-gradient(135deg, var(--text), var(--text-dim));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.section-lead {
+  font-size: 16px;
+  color: var(--muted);
+  margin-top: 10px;
+  max-width: 500px;
+  line-height: 1.65;
+}
+
+/* ── FEATURES ── */
+.features-section { background: var(--bg); }
+
+.features-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 56px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  background: transparent;
+  border: none;
+  border-radius: 16px;
+  overflow: visible;
+}
+
+.feature-card {
+  background: linear-gradient(135deg, rgba(14,16,20,0.6), rgba(19,22,28,0.4));
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+  transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border-radius: 12px;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--red), transparent);
+  opacity: 0;
+  transition: opacity .3s;
+}
+
+.feature-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(800px at var(--mouse-x, 0) var(--mouse-y, 0), rgba(255,45,45,0.1) 0%, transparent 80%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+
+.feature-card:hover {
+  background: linear-gradient(135deg, rgba(19,22,28,0.8), rgba(14,16,20,0.6));
+  border-color: var(--border-red);
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(255,45,45,0.1);
+}
+
+.feature-card:hover::before { opacity: 1; }
+.feature-card:hover::after { opacity: 1; }
+
+.feature-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255,45,45,0.15), rgba(255,45,45,0.05));
+  border: 1px solid var(--border-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  transition: all .3s ease;
+}
+
+.feature-card:hover .feature-icon {
+  background: linear-gradient(135deg, rgba(255,45,45,0.25), rgba(255,45,45,0.1));
+  box-shadow: 0 0 20px rgba(255,45,45,0.2);
+  transform: scale(1.15);
+}
+
+.feature-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: var(--red);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.feature-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+.feature-card p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.feature-num {
+  position: absolute;
+  bottom: 28px;
+  right: 32px;
+  font-family: var(--mono);
+  font-size: 52px;
+  font-weight: 700;
+  color: rgba(255,45,45,0.08);
+  line-height: 1;
+}
+
+/* ── HOW IT WORKS ── */
+.how-section {
+  background: linear-gradient(180deg, var(--bg2), var(--bg));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 56px;
+  background: transparent;
+  border-radius: 16px;
+  overflow: visible;
+  border: none;
+}
+
+.step {
+  background: linear-gradient(135deg, rgba(19,22,28,0.6), rgba(14,16,20,0.4));
+  border: 1px solid var(--border);
+  padding: 44px 36px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.step::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent, rgba(255,45,45,0.05), transparent);
+  transform: translateX(-100%);
+  transition: transform .6s;
+}
+
+.step:hover {
+  background: linear-gradient(135deg, rgba(19,22,28,0.8), rgba(26,30,38,0.6));
+  border-color: var(--border-red);
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(255,45,45,0.1);
+}
+
+.step:hover::before {
+  transform: translateX(100%);
+}
+
+.step-num {
+  font-family: var(--mono);
+  font-size: 72px;
+  font-weight: 700;
+  color: rgba(255,45,45,0.07);
+  line-height: 1;
+  position: absolute;
+  top: 20px;
+  right: 28px;
+}
+
+.step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--red), var(--red-bright));
+  margin-bottom: 20px;
+  box-shadow: 0 0 12px var(--red);
+  animation: stepPulse 2s infinite;
+}
+
+@keyframes stepPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+.step h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.step p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+/* ── ISSUE TYPES ── */
+.issues-section { background: var(--bg); }
+
+.issues-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 40px;
+}
+
+.issue-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(14,16,20,0.6), rgba(19,22,28,0.4));
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: default;
+  backdrop-filter: blur(10px);
+}
+
+.issue-pill:hover {
+  border-color: var(--border-red);
+  color: var(--red);
+  background: linear-gradient(135deg, rgba(255,45,45,0.1), rgba(255,45,45,0.05));
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(255,45,45,0.15);
+}
+
+.issue-pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--red), var(--red-bright));
+  opacity: 0.6;
+  box-shadow: 0 0 6px rgba(255,45,45,0.5);
+}
+
+/* ── LEADERBOARD ── */
+.lb-section {
+  background: linear-gradient(180deg, var(--bg2), var(--bg));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.lb-table {
+  margin-top: 48px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(255,45,45,0.05);
+}
+
+.lb-header {
+  display: grid;
+  grid-template-columns: 60px 1fr 120px 140px;
+  padding: 12px 28px;
+  background: linear-gradient(135deg, rgba(19,22,28,0.8), rgba(14,16,20,0.6));
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.lb-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 120px 140px;
+  padding: 18px 28px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: rgba(8,9,11,0.5);
+  transition: all .3s ease;
+  position: relative;
+}
+
+.lb-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255,45,45,0.05) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity .3s;
+}
+
+.lb-row:last-child { border-bottom: none; }
+
+.lb-row:hover {
+  background: linear-gradient(135deg, rgba(19,22,28,0.6), rgba(26,30,38,0.4));
+  border-bottom-color: var(--border-red);
+}
+
+.lb-row:hover::before {
+  opacity: 1;
+}
+
+.lb-rank {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--muted);
+  position: relative;
+  z-index: 1;
+}
+
+.lb-row:nth-child(1) .lb-rank { color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.3); }
+.lb-row:nth-child(2) .lb-rank { color: #c0c0c0; text-shadow: 0 0 8px rgba(192,192,192,0.3); }
+.lb-row:nth-child(3) .lb-rank { color: #cd7f32; text-shadow: 0 0 8px rgba(205,127,50,0.3); }
+
+.lb-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.lb-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255,45,45,0.15), rgba(255,45,45,0.05));
+  border: 1px solid var(--border-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--red);
+  flex-shrink: 0;
+  transition: all .3s ease;
+}
+
+.lb-row:hover .lb-avatar {
+  background: linear-gradient(135deg, rgba(255,45,45,0.25), rgba(255,45,45,0.1));
+  box-shadow: 0 0 16px rgba(255,45,45,0.3);
+  transform: scale(1.1);
+}
+
+.lb-username { font-weight: 600; font-size: 15px; position: relative; z-index: 1; }
+
+.lb-count {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--muted);
+  position: relative;
+  z-index: 1;
+}
+
+.lb-bar-wrap {
+  height: 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 100px;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.lb-bar {
+  height: 100%;
+  border-radius: 100px;
+  background: linear-gradient(90deg, var(--red), var(--red-bright));
+  transition: width .8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 16px rgba(255,45,45,0.3);
+}
+
+/* ── TERMINAL BLOCK ── */
+.terminal-section { background: var(--bg); }
+
+.terminal {
+  background: linear-gradient(135deg, #0c0e11, #0e1014);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  max-width: 680px;
+  margin: 48px auto 0;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+  transition: all .3s ease;
+}
+
+.terminal:hover {
+  border-color: var(--border-red);
+  box-shadow: 0 20px 60px rgba(255,45,45,0.1), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, rgba(14,16,20,0.8), rgba(8,9,11,0.8));
+  border-bottom: 1px solid var(--border);
+}
+
+.t-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+.t-red { background: #ff5f57; }
+.t-yellow { background: #febc2e; }
+.t-green { background: #28c840; }
+
+.terminal-title {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.terminal-body {
+  padding: 24px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 2;
+  color: var(--text);
+  overflow-x: auto;
+}
+
+.t-comment { color: #4a5568; }
+.t-cmd { color: #68d391; text-shadow: 0 0 8px rgba(104,211,145,0.3); }
+.t-flag { color: #63b3ed; }
+.t-str { color: #fbd38d; }
+.t-out { color: var(--muted); }
+.t-success { color: var(--red); text-shadow: 0 0 8px rgba(255,45,45,0.3); }
+.t-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--red);
+  animation: blink 1s infinite;
+  vertical-align: middle;
+  box-shadow: 0 0 8px var(--red);
+}
+
+@keyframes blink {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── REPORT FORM ── */
+.report-section {
+  background: linear-gradient(180deg, var(--bg2), var(--bg));
+  border-top: 1px solid var(--border);
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+  margin-top: 48px;
+}
+
+.form-field {
+  margin-bottom: 18px;
+}
+
+.form-field label {
+  display: block;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(19,22,28,0.4), rgba(14,16,20,0.2));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 14px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  transition: all .3s ease;
+  outline: none;
+  backdrop-filter: blur(10px);
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  border-color: var(--border-red);
+  background: linear-gradient(135deg, rgba(255,45,45,0.08), rgba(255,45,45,0.03));
+  box-shadow: 0 0 16px rgba(255,45,45,0.2);
+  transform: translateY(-2px);
+}
+
+.form-field select option { background: var(--bg3); }
+
+.form-field textarea {
+  min-height: 100px;
+  resize: vertical;
+  font-family: var(--sans);
+}
+
+.report-info { }
+
+.info-point {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 28px;
+  transition: all .3s ease;
+}
+
+.info-point:hover {
+  transform: translateX(8px);
+}
+
+.info-point-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255,45,45,0.12), rgba(255,45,45,0.05));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .3s ease;
+}
+
+.info-point:hover .info-point-icon {
+  background: linear-gradient(135deg, rgba(255,45,45,0.2), rgba(255,45,45,0.1));
+  box-shadow: 0 0 16px rgba(255,45,45,0.2);
+  transform: scale(1.15);
+}
+
+.info-point-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--red);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.info-point h4 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.info-point p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ── FOOTER ── */
+footer {
+  background: linear-gradient(135deg, rgba(8,9,11,0.8), rgba(14,16,20,0.6));
+  border-top: 1px solid var(--border);
+  padding: 60px;
+  backdrop-filter: blur(10px);
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 60px;
+  margin-bottom: 48px;
+}
+
+.footer-brand p {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 12px;
+  line-height: 1.7;
+  max-width: 280px;
+}
+
+.footer-col h4 {
+  font-size: 13px;
+  font-family: var(--mono);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+
+.footer-col ul { list-style: none; }
+
+.footer-col ul li {
+  margin-bottom: 10px;
+}
+
+.footer-col ul li a {
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: all .3s ease;
+  position: relative;
+}
+
+.footer-col ul li a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--red);
+  transition: width .3s ease;
+}
+
+.footer-col ul li a:hover {
+  color: var(--text);
+}
+
+.footer-col ul li a:hover::after {
+  width: 100%;
+}
+
+.footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.footer-license {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.license-badge {
+  background: linear-gradient(135deg, rgba(255,45,45,0.15), rgba(255,45,45,0.05));
+  border: 1px solid var(--border-red);
+  color: var(--red);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  box-shadow: 0 0 8px rgba(255,45,45,0.1);
+}
+
+/* ── MOBILE NAV TOGGLE ── */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  padding: 4px;
+  transition: all .3s ease;
+}
+
+.hamburger:hover span {
+  background: var(--red);
+}
+
+.hamburger span {
+  width: 22px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: .3s;
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: linear-gradient(135deg, rgba(19,22,28,0.9), rgba(14,16,20,0.9));
+  border: 1px solid var(--border-red);
+  border-radius: 10px;
+  padding: 14px 20px;
+  font-size: 14px;
+  z-index: 9000;
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all .35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 320px;
+  box-shadow: 0 8px 32px rgba(255,45,45,0.2);
+  backdrop-filter: blur(10px);
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toast-icon { color: var(--red); font-size: 18px; text-shadow: 0 0 8px rgba(255,45,45,0.5); }
+
+/* ── SCROLL ANIMATION ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── MOBILE NAV ── */
+.mobile-menu {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(14,16,20,0.9);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  backdrop-filter: blur(10px);
+}
+
+.mobile-menu.open { display: flex; }
+
+.mobile-menu a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  transition: all .3s ease;
+}
+
+.mobile-menu a:last-child { border-bottom: none; }
+
+.mobile-menu a:hover {
+  color: var(--text);
+  padding-left: 8px;
+  border-left: 2px solid var(--red);
+}
+
+/* ── MOBILE ── */
+@media (max-width: 900px) {
+  nav { padding: 0 24px; }
+  .nav-links, .nav-cta { display: none; }
+  .hamburger { display: flex; }
+
+  .hero { padding: 100px 24px 80px; }
+  .stats-bar { grid-template-columns: repeat(3, 1fr); }
+  .section { padding: 60px 24px; }
+
+  .feature-grid { grid-template-columns: 1fr; }
+  .steps { grid-template-columns: 1fr; }
+
+  .lb-header,
+  .lb-row { grid-template-columns: 50px 1fr 80px; }
+  .lb-bar-wrap { display: none; }
+
+  .report-grid { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .footer-bottom { flex-direction: column; gap: 12px; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav id="navbar">
+  <a class="nav-logo" href="#">
+    <div class="nav-logo-icon">BLT</div>
+    <span class="nav-logo-text">OWASP <span>BLT</span></span>
+  </a>
+
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#leaderboard">Leaderboard</a></li>
+    <li><a href="https://github.com/OWASP-BLT/BLT" target="_blank">GitHub</a></li>
+  </ul>
+
+  <div class="nav-cta">
+    <button class="btn btn-ghost" onclick="scrollTo('#report')">Sign in</button>
+    <button class="btn btn-red" onclick="scrollTo('#report')">Report a Bug</button>
+  </div>
+
+  <div class="hamburger" id="hamburger" onclick="toggleMenu()">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#features">Features</a>
+  <a href="#how">How it works</a>
+  <a href="#leaderboard">Leaderboard</a>
+  <a href="#report">Report a Bug</a>
+  <a href="https://github.com/OWASP-BLT/BLT" target="_blank">GitHub ↗</a>
+</div>
+
+<!-- HERO -->
+<section class="hero" id="home">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="hero-badge-dot"></span>
+      OWASP Community Project · AGPLv3
+    </div>
+
+    <h1>
+      Find bugs.
+      <span class="accent">Get rewarded.</span>
+    </h1>
+
+    <p class="hero-sub">
+      A transparent, community-driven bug logging tool for security researchers, developers, and organizations.
+    </p>
+
+    <div class="hero-actions">
+      <button class="btn btn-red btn-lg" onclick="scrollTo('#report')">Start Reporting</button>
+      <button class="btn btn-ghost btn-lg" onclick="scrollTo('#how')">How it works</button>
+    </div>
+  </div>
+
+  <div class="hero-scroll">
+    <div class="scroll-line"></div>
+    SCROLL
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <span class="stat-num" data-count="18">0</span>
+    <span class="stat-label">Bugs Reported</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num" data-count="4">0</span>
+    <span class="stat-label">Open Issues</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num" data-count="14">0</span>
+    <span class="stat-label">Closed</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num" data-count="5">0</span>
+    <span class="stat-label">Domains</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num" data-count="5">0</span>
+    <span class="stat-label">Reporters</span>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section features-section reveal" id="features">
+  <div class="features-header">
+    <div>
+      <span class="section-tag">// Features</span>
+      <h2>What OWASP BLT<br>gives your team</h2>
+    </div>
+    <p class="section-lead">Everything needed for a transparent, community-first bug reporting workflow.</p>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <h3>Public bug reports</h3>
+      <p>Capture errors, UI regressions, performance issues, and more — all in one transparent, open feed.</p>
+      <span class="feature-num">01</span>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <h3>Anonymous intake</h3>
+      <p>Submit bugs without revealing your identity using the BLT-API — privacy-first by design.</p>
+      <span class="feature-num">02</span>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <h3>Secure vulnerability path</h3>
+      <p>Critical security issues are routed through BLT-Zero — end-to-end encrypted and privately disclosed.</p>
+      <span class="feature-num">03</span>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <h3>Live leaderboard</h3>
+      <p>Track top contributors with real-time rank updates, report counts, and reputation scores.</p>
+      <span class="feature-num">04</span>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section how-section reveal" id="how">
+  <span class="section-tag">// Process</span>
+  <h2>How it works</h2>
+  <p class="section-lead">Three steps from spotted bug to verified report.</p>
+
+  <div class="steps">
+    <div class="step">
+      <span class="step-num">1</span>
+      <div class="step-dot"></div>
+      <h3>Spot a bug</h3>
+      <p>Find issues: broken flows, missing redirects, typos, performance degradation, or security concerns on any public platform.</p>
+    </div>
+    <div class="step">
+      <span class="step-num">2</span>
+      <div class="step-dot"></div>
+      <h3>Submit a report</h3>
+      <p>Use the GitHub issue template, the web form below, or call the BLT-API for anonymous submissions. Attach screenshots, logs, and severity.</p>
+    </div>
+    <div class="step">
+      <span class="step-num">3</span>
+      <div class="step-dot"></div>
+      <h3>Earn & build trust</h3>
+      <p>Climb the leaderboard, earn community rewards, and build a reputation as a responsible security researcher.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ISSUE TYPES -->
+<section class="section issues-section reveal">
+  <span class="section-tag">// Categories</span>
+  <h2>Supported issue types</h2>
+  <p class="section-lead">BLT covers the full spectrum of public-facing software issues.</p>
+
+  <div class="issues-grid">
+    <div class="issue-pill"><span class="issue-pill-dot"></span> 404 / 500 errors</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> Functional issues</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> Performance & slow loading</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> Typos & copy errors</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> UI / design regressions</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> IP / trademark violations</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> License violations</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> Security misconfigurations</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> Broken authentication</div>
+    <div class="issue-pill"><span class="issue-pill-dot"></span> Accessibility failures</div>
+  </div>
+</section>
+
+<!-- LEADERBOARD -->
+<section class="section lb-section reveal" id="leaderboard">
+  <span class="section-tag">// Leaderboard</span>
+  <h2>Top contributors</h2>
+  <p class="section-lead">Ranked by verified bug reports. Updated in real-time.</p>
+
+  <div class="lb-table">
+    <div class="lb-header">
+      <span>Rank</span>
+      <span>Reporter</span>
+      <span>Reports</span>
+      <span>Activity</span>
+    </div>
+
+    <div class="lb-row">
+      <span class="lb-rank">🥇</span>
+      <div class="lb-user">
+        <div class="lb-avatar">DB</div>
+        <span class="lb-username">DonnieBLT</span>
+      </div>
+      <span class="lb-count">12 reports</span>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:100%"></div></div>
+    </div>
+
+    <div class="lb-row">
+      <span class="lb-rank">🥈</span>
+      <div class="lb-user">
+        <div class="lb-avatar">A9</div>
+        <span class="lb-username">ananya-09</span>
+      </div>
+      <span class="lb-count">3 reports</span>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:25%"></div></div>
+    </div>
+
+    <div class="lb-row">
+      <span class="lb-rank">🥉</span>
+      <div class="lb-user">
+        <div class="lb-avatar">NR</div>
+        <span class="lb-username">Nachiket-Roy</span>
+      </div>
+      <span class="lb-count">1 report</span>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:8%"></div></div>
+    </div>
+
+    <div class="lb-row">
+      <span class="lb-rank" style="color:var(--muted)">#4</span>
+      <div class="lb-user">
+        <div class="lb-avatar">KB</div>
+        <span class="lb-username">kittenbytes</span>
+      </div>
+      <span class="lb-count">1 report</span>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:8%"></div></div>
+    </div>
+
+    <div class="lb-row">
+      <span class="lb-rank" style="color:var(--muted)">#5</span>
+      <div class="lb-user">
+        <div class="lb-avatar">S1</div>
+        <span class="lb-username">sidd190</span>
+      </div>
+      <span class="lb-count">1 report</span>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:8%"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- TERMINAL -->
+<section class="section terminal-section reveal">
+  <div style="text-align:center;">
+    <span class="section-tag">// BLT API</span>
+    <h2>Submit via CLI or API</h2>
+    <p class="section-lead" style="margin: 10px auto 0; text-align:center;">
+      Power users can report bugs programmatically using the BLT-API.
+    </p>
+  </div>
+
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="t-dot t-red"></div>
+      <div class="t-dot t-yellow"></div>
+      <div class="t-dot t-green"></div>
+      <span class="terminal-title">blt — bash — 80×24</span>
+    </div>
+    <div class="terminal-body">
+      <div><span class="t-comment"># Install BLT CLI</span></div>
+      <div><span class="t-cmd">$</span> <span class="t-flag">pip</span> install owasp-blt</div>
+      <div>&nbsp;</div>
+      <div><span class="t-comment"># Submit a bug anonymously</span></div>
+      <div><span class="t-cmd">$</span> blt report <span class="t-flag">--url</span> <span class="t-str">"https://example.com/broken"</span> \</div>
+      <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-flag">--type</span> <span class="t-str">"functional"</span> <span class="t-flag">--anon</span></div>
+      <div>&nbsp;</div>
+      <div><span class="t-out">  Submitting report...</span></div>
+      <div><span class="t-out">  Verifying domain... ✓</span></div>
+      <div><span class="t-success">  Report #19 filed successfully. Thank you!</span></div>
+      <div>&nbsp;</div>
+      <div><span class="t-cmd">$</span> <span class="t-cursor"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- REPORT FORM -->
+<section class="section report-section reveal" id="report">
+  <div class="report-grid">
+    <div>
+      <span class="section-tag">// Submit</span>
+      <h2>Report a bug</h2>
+      <p class="section-lead">Found an issue? Fill in the details and submit — we'll take it from there.</p>
+
+      <form id="bugForm" onsubmit="submitReport(event)" style="margin-top:32px;">
+        <div class="form-field">
+          <label>URL with the bug</label>
+          <input type="url" id="bugUrl" placeholder="https://example.com/page" required>
+        </div>
+        <div class="form-field">
+          <label>Issue category</label>
+          <select id="bugType">
+            <option value="">Select category...</option>
+            <option>404 / 500 error</option>
+            <option>Functional issue</option>
+            <option>Performance problem</option>
+            <option>Typo / design issue</option>
+            <option>Security misconfiguration</option>
+            <option>IP / License violation</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Description</label>
+          <textarea id="bugDesc" placeholder="Describe the issue, steps to reproduce, expected vs actual behaviour..."></textarea>
+        </div>
+        <div class="form-field">
+          <label>Reporter (optional — leave blank for anonymous)</label>
+          <input type="text" id="bugUser" placeholder="GitHub username">
+        </div>
+        <button type="submit" class="btn btn-red btn-lg" style="width:100%; margin-top:4px;">Submit Report</button>
+      </form>
+    </div>
+
+    <div class="report-info">
+      <div class="info-point">
+        <div class="info-point-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <h4>Your privacy is protected</h4>
+          <p>Choose to remain anonymous. Your IP is never logged in public reports.</p>
+        </div>
+      </div>
+      <div class="info-point">
+        <div class="info-point-icon">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <h4>Reports are verified</h4>
+          <p>Our community reviewers validate each submission before it goes public.</p>
+        </div>
+      </div>
+      <div class="info-point">
+        <div class="info-point-icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+        </div>
+        <div>
+          <h4>Earn recognition</h4>
+          <p>Verified reporters are credited publicly and climb the leaderboard.</p>
+        </div>
+      </div>
+      <div class="info-point">
+        <div class="info-point-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div>
+          <h4>Open source & transparent</h4>
+          <p>Every report is publicly traceable. The platform itself is AGPLv3 licensed on GitHub.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <div class="nav-logo">
+        <div class="nav-logo-icon">BLT</div>
+        <span class="nav-logo-text">OWASP <span>BLT</span></span>
+      </div>
+      <p>An open-source bug reporting and rewards platform for the security community. Part of the OWASP Foundation.</p>
+    </div>
+
+    <div class="footer-col">
+      <h4>Platform</h4>
+      <ul>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#leaderboard">Leaderboard</a></li>
+        <li><a href="#report">Report a Bug</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4>Community</h4>
+      <ul>
+        <li><a href="https://github.com/OWASP-BLT/BLT" target="_blank">GitHub</a></li>
+        <li><a href="#">Discord</a></li>
+        <li><a href="#">OWASP Slack</a></li>
+        <li><a href="#">Contribute</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4>Legal</h4>
+      <ul>
+        <li><a href="#">AGPLv3 License</a></li>
+        <li><a href="#">Privacy Policy</a></li>
+        <li><a href="#">Responsible Disclosure</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <span>© 2026 OWASP Foundation & BLT Contributors</span>
+    <div class="footer-license">
+      <span class="license-badge">AGPLv3</span>
+      Open Source
+    </div>
+  </div>
+</footer>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span class="toast-icon">✓</span>
+  <div>
+    <strong>Report submitted!</strong><br>
+    <span style="font-size:12px; color:var(--muted)">Thank you. Reviewers have been notified.</span>
+  </div>
+</div>
+
+<script>
+/* ── COUNTER ANIMATION ── */
+function animateCount(el) {
+  const target = parseInt(el.dataset.count);
+  const dur = 1200;
+  const start = performance.now();
+  function tick(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(ease * target);
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ── INTERSECTION OBSERVER ── */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      e.target.querySelectorAll('[data-count]').forEach(animateCount);
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.08 });
+
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* Stats bar counts on scroll */
+const statsIo = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.querySelectorAll('[data-count]').forEach(animateCount);
+      statsIo.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelector('.stats-bar') && statsIo.observe(document.querySelector('.stats-bar'));
+
+/* ── SMOOTH SCROLL ── */
+function scrollTo(id) {
+  const el = document.querySelector(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── NAV SCROLL SHADOW ── */
+const nav = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  nav.style.boxShadow = scrollY > 20 ? '0 4px 20px rgba(255,45,45,0.1)' : 'none';
+});
+
+/* ── MOBILE MENU ── */
+function toggleMenu() {
+  document.getElementById('mobileMenu').classList.toggle('open');
+}
+
+/* ── FORM SUBMIT ── */
+function submitReport(e) {
+  e.preventDefault();
+  const url = document.getElementById('bugUrl').value;
+  const type = document.getElementById('bugType').value;
+  const desc = document.getElementById('bugDesc').value;
+  if (!url || !type || !desc) {
+    showToast('Please fill in all required fields.', true);
+    return;
+  }
+  document.getElementById('bugForm').reset();
+  showToast('Report submitted! Reviewers have been notified.');
+}
+
+/* ── TOAST ── */
+function showToast(msg, error) {
+  const t = document.getElementById('toast');
+  t.querySelector('strong').textContent = error ? 'Missing fields' : 'Report submitted!';
+  t.querySelector('span:last-child').textContent = error ? msg : 'Thank you. Reviewers have been notified.';
+  t.querySelector('.toast-icon').textContent = error ? '⚠' : '✓';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+/* ── NAV ACTIVE STATE ── */
+const sections = document.querySelectorAll('section[id], .stats-bar');
+const links = document.querySelectorAll('.nav-links a');
+
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(s => {
+    if (scrollY >= s.offsetTop - 80) cur = s.id;
+  });
+  links.forEach(a => {
+    a.style.color = a.getAttribute('href') === '#' + cur ? 'var(--text)' : '';
+  });
+});
+</script>
+</body>
+</html>
